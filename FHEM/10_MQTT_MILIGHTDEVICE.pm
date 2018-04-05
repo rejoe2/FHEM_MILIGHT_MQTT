@@ -103,7 +103,8 @@ BEGIN {
 sub Define() {
   my ( $hash, $def ) = @_;
   my @args = split("[ \t][ \t]*", $def);
-  my ($name, $devtype, $bridgeID, $slot, $bridgeType,$mybroker) = @args;
+  return "too few parameters: define <name> MQTT_MILIGHTDEVICE <bridgeID> <slot> <bridgeType> <IO-Name>" if( @args != 6 );
+  my ($name, $devtype, $bridgeID, $slot, $bridgeType, $mybroker) = @args;
   $hash->{sets} = {};
   MQTT::Client_Define($hash,$name);
   CommandAttr(undef,"$hash->{NAME} webCmd level:hue:command") unless (AttrVal($name,"webCmd",undef));
