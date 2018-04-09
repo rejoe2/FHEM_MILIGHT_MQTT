@@ -104,22 +104,18 @@ sub Define() {
   my ( $hash, $def ) = @_;
   my @args = split("[ \t][ \t]*", $def);
   return "too few parameters: define <name> MQTT_MILIGHTDEVICE <bridgeID> <slot> <bridgeType> <IO-Name>" if( @args != 6 );
-  my ($name, $devtype, $bridgeID, $slot, $bridgeType, $mybroker) = @args;
+  my ($name, $devtype, $bridgeID, $slot, $bridgeType, $myBroker) = @args;
   $hash->{sets} = {};
   MQTT::Client_Define($hash,$name);
   CommandAttr(undef,"$hash->{NAME} webCmd level:hue:command") unless (AttrVal($name,"webCmd",undef));
-  CommandAttr(undef,"$hash->{NAME} stateFormat status") unless (AttrVal($name,"stateFormat",undef));
+  CommandAttr(undef,"$hash->{NAME} stateFormat status");# unless (AttrVal($name,"stateFormat",undef));
   CommandAttr(undef,"$hash->{NAME} useSetExtensions 1") unless (AttrVal($name,"useSetExtensions",undef));
   CommandAttr(undef,"$hash->{NAME} widgetOverride command:uzsuSelectRadio,Weiss,Nacht hue:colorpicker,HUE,0,1,359 level:colorpicker,BRI,0,1,100") unless (AttrVal($name,"widgetOverride",undef));
   #CommandAttr(undef,"$hash->{NAME} devStateIcon ON:light_light_dim_50@#0ABF01:off OF.*:light_light_dim_00:on") unless (AttrVal($name,"devStateIcon",undef)) ;
-  CommandAttr(undef,"$hash->{NAME} devStateIcon {(MQTT_MILIGHTDEVICE::dynDevStateIcon($name,$bridgeType)}") unless (AttrVal($name,"devStateIcon",undef)) ;
-  $attr{$name}{devStateIcon} =  if(!defined($attr{$name}{devStateIcon}));
-#	my $dynicon = getIconCode($name,$bridgeType);
-#	CommandAttr(undef,"$hash->{NAME} devStateIcon $dynicon") ;
-#    }
+  CommandAttr(undef,"$hash->{NAME} devStateIcon {MQTT::MILIGHTDEVICE::dynDevStateIcon(\$name,\"$bridgeType\")}") unless (AttrVal($name,"devStateIcon",undef)) ;
   CommandAttr(undef,"$hash->{NAME} eventMap /set_white:Weiss/ /night_mode:Nacht/ /white_mode:white/ /status ON:on/ /status OFF:off/") unless (AttrVal($name,"eventMap",undef));
-  CommandAttr(undef,"$hash->{NAME} subscribeReading_status milight/state/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"subscribeReading_status",undef));
-  CommandAttr(undef,"$hash->{NAME} subscribeReading_groupState milight/state/$bridgeID/$bridgeType/0") unless (AttrVal($name,"subscribeReading_groupState",undef) and $slot);
+  CommandAttr(undef,"$hash->{NAME} subscribeReading_status milight/states/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"subscribeReading_status",undef));
+  CommandAttr(undef,"$hash->{NAME} subscribeReading_groupState milight/states/$bridgeID/$bridgeType/0") unless (AttrVal($name,"subscribeReading_groupState",undef) and $slot);
   unless (AttrVal($name,"subscribeReading_update",undef)) {
     my $subscription = "";
     $subscription = "milight/updates/$bridgeID/$bridgeType/$slot" unless $slot;
@@ -136,8 +132,6 @@ sub Define() {
   CommandAttr(undef,"$hash->{NAME} stateFormat status") unless (AttrVal($name,"stateFormat",undef));
   CommandAttr(undef,"$hash->{NAME} IODev $myBroker") unless (AttrVal($name,"IODev",undef));
   
-    #{my $power=ReadingsVal($name,"status","OFF");if($power eq "OFF"){Color::devStateIcon($name,"status",undef,"status");}else{Color::devStateIcon($name,"dimmer",undef,"bright")}}' if (!defined($attr{$name}{devStateIcon}) && defined($model) && ($model eq "mono" || $model eq "desklamp"));
-    #$attr{$name}{devStateIcon} = '{my $power=ReadingsVal($name,"status","OFF");if($power eq "OFF"){Color::devStateIcon($name,"status",undef,"status");}else{Color::devStateIcon($name,"dimmer",undef,"bright")}}' if (!defined($attr{$name}{devStateIcon}) && defined($model) && ($model eq "mono" || $model eq "desklamp"));
   return MQTT::Client_Define($hash,$def);
 };
 
@@ -300,15 +294,15 @@ sub onmessage($$$) {
     Log3($hash->{NAME},5,"calling readingsBulkUpdate($hash->{NAME},$reading,$message,1");
     my $jsonlist = decode_json($message);
     while( my ($key,$value) = each %{$jsonlist} ) {
-      if (ref($key) eq "HASH" ) {
-        while( my ($key1,$value1) = each %{$key}) {                                       
-            Log3 $hash->{NAME}, 5, "$name: decoding recursive JSON in hash while, key1 = $key1, value1 = $value1";
+      if (ref($value) eq 'HASH' ) {
+        while( my ($key1,$value1) = each %{$value}) {                                       
+            Log3 $hash->{NAME}, 4, "$hash->{NAME}: decoding recursive JSON in hash while, key1 = $key1, value1 = $value1";
             readingsSingleUpdate($hash,$key1,$value1,1);        
         }                                                                           
       } else {     
-	  	readingsSingleUpdate($hash,$key,$value,1);
-		Log3($hash->{NAME},5,"calling readingsSingleUpdate($hash->{NAME} (loop),$key,$value,1");
-	  }
+        readingsSingleUpdate($hash,$key,$value,1);
+	Log3($hash->{NAME},5,"calling readingsSingleUpdate($hash->{NAME} (loop),$key,$value,1");
+      }
     }
   } elsif ($topic =~ $hash->{'.autoSubscribeExpr'}) {
     Log3($hash->{NAME},5,"calling readingsSingleUpdate($hash->{NAME},$1,$message,1");
@@ -319,14 +313,17 @@ sub onmessage($$$) {
 
 sub dynDevStateIcon($$) {
   my($hash,$ledtype) = @_;
+  $hash = $main::defs{$hash} if(ref($hash) ne 'HASH');
   my $name = $hash->{NAME};
   my $number = (ReadingsVal($name,"level","100")+4)/10;
   my $s = $dim_values{sprintf("%.0f", $number)};
   # Return SVG coloured icon with toggle as default action
   my $rgbvalue = "AB0499";
-  return "(ON|ON.*):light_light_$s@#$rgbvalue:off OF.*:light_light_dim_00:on" if ($ledtype eq "rgbw" || $ledtype eq "rgb");
+  Log3($name,4,"NAME: $name, LEDTYPE: $ledtype, $s, $rgbvalue");
+  return "(ON|ON.*):light_light_$s:off OF.*:light_light_dim_00:on" if ($ledtype eq "rgbw" || $ledtype eq "rgb");
+  #return "ON:light_light_$s@#$rgbvalue:off OF.*:light_light_dim_00:on" if ($ledtype eq "rgbw" || $ledtype eq "rgb");
   # Return SVG icon with toggle as default action (for White bulbs)
-  return "ON:light_light_$s:off OF.*:light_light_dim_00:on";
+  return "ON:light_light_$s:off OFF:light_light_dim_00:on";
 }
 
 1;
@@ -349,7 +346,7 @@ sub dynDevStateIcon($$) {
        Specifies the MQTT-Milight device.</p>
   </ul>
   <p>Example: <code>define myFirstMQTT_Milight_Device 0xAB12 2 rgbw myBroker</code><br/>
-		would create a device on channel 2, sending and receiving commands using Milight ID 0xAB12 and also listen to codes sent by a remote to the entire group</br>
+	would create a device on channel 2, sending and receiving commands using Milight ID 0xAB12 and also listen to codes sent by a remote to the entire group</br>
   
   <a name="MQTT_DEVICEset"></a>
   <p><b>Set</b></p>
