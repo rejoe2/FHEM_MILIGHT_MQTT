@@ -111,7 +111,11 @@ sub Define() {
   "cct";
   $hash->{sets} = {};
   #MQTT::Client_Define($hash,$name);
-  CommandAttr(undef,"$hash->{NAME} webCmd level:hue:command") unless (AttrVal($name,"webCmd",undef));
+  $attr{$name}{room} = "MQTT" unless(defined($attr{$name}{room}));
+  unless (defined($attr{$name}{webCmd})) {
+    $attr{$name}{webCmd} = "level:hue:command") if $bridgeType eq "rgbw" or $bridgeType eq "rgb_cct" ));
+	$attr{$name}{webCmd} = "level:command") if $bridgeType eq "cct" ));
+  }
   CommandAttr(undef,"$hash->{NAME} stateFormat status");# unless (AttrVal($name,"stateFormat",undef));
   CommandAttr(undef,"$hash->{NAME} useSetExtensions 1") unless (AttrVal($name,"useSetExtensions",undef));
   CommandAttr(undef,"$hash->{NAME} widgetOverride command:uzsuSelectRadio,Weiss,Nacht hue:colorpicker,HUE,0,1,359 level:colorpicker,BRI,0,1,100") unless (AttrVal($name,"widgetOverride",undef));
