@@ -21,7 +21,7 @@
 #     You should have received a copy of the GNU General Public License
 #     along with fhem.  If not, see <http://www.gnu.org/licenses/>.
 #
-# $Id: 10_MQTT_DEVICE.pm 1 2018-04-09 12:30:00Z Beta-User $
+# $Id: 10_MQTT_DEVICE.pm 1 2018-04-09 12:45:00Z Beta-User $
 #
 ##############################################
 
@@ -104,6 +104,7 @@ sub Define() {
   my ( $hash, $def ) = @_;
   my @args = split("[ \t][ \t]*", $def);
   return "too few parameters: define <name> MQTT_MILIGHTDEVICE <bridgeID> <slot> <bridgeType> <IO-Name>" if( @args != 6 );
+  return "ERROR: Perl module JSON is not installed!" if (isPmNotInstalled($hash,"JSON"));
   my ($name, $devtype, $bridgeID, $slot, $bridgeType, $myBroker) = @args;
   $hash->{sets} = {};
   MQTT::Client_Define($hash,$name);
@@ -317,13 +318,24 @@ sub dynDevStateIcon($$) {
   my $name = $hash->{NAME};
   my $number = (ReadingsVal($name,"level","100")+4)/10;
   my $s = $dim_values{sprintf("%.0f", $number)};
+  my $rgbvalue = sprintf("%02X",ReadingsVal($name,'r','255')).sprintf("%02X",ReadingsVal($name,'g','255')).sprintf("%02X",ReadingsVal($name,'b','255'));
   # Return SVG coloured icon with toggle as default action
-  my $rgbvalue = "AB0499";
-  Log3($name,4,"NAME: $name, LEDTYPE: $ledtype, $s, $rgbvalue");
-  return "(ON|ON.*):light_light_$s:off OF.*:light_light_dim_00:on" if ($ledtype eq "rgbw" || $ledtype eq "rgb");
-  #return "ON:light_light_$s@#$rgbvalue:off OF.*:light_light_dim_00:on" if ($ledtype eq "rgbw" || $ledtype eq "rgb");
-  # Return SVG icon with toggle as default action (for White bulbs)
-  return "ON:light_light_$s:off OFF:light_light_dim_00:on";
+  Log3($name,5,"NAME: $name, LEDTYPE: $ledtype, $s, $rgbvalue");
+  # Return SVG icon with toggle as default action (for White bulbs or if in a somehow white mode)
+  return "(ON|ON.*):light_light_$s:off OF.*:light_light_dim_00:on" if ($ledtype ne "rgbw" and $ledtype ne "rgb" or $rgbvalue eq "FFFFFF" or ReadingsVal($name,"command","color") eq "white_mode" or ReadingsVal($name,"command","color") eq "night_mode" or ReadingsVal($name,"command","color") eq "set_white");
+  return "(ON|ON.*):light_light_$s@#$rgbvalue:off OF.*:light_light_dim_00:on";
+}
+
+sub isPmNotInstalled($$) {
+  my ($hash,$pm) = @_;
+  my ($name,$type) = ($hash->{NAME},$hash->{TYPE});
+  if (not eval "use $pm;1") 
+  {
+    Log3 $name, 1, "$type $name: perl modul missing: $pm. Install it, please.";
+    $hash->{MISSING_MODULES} .= "$pm ";
+    return "failed: $pm";
+  }
+  return undef;
 }
 
 1;
@@ -337,8 +349,13 @@ sub dynDevStateIcon($$) {
 <h3>MQTT_MILIGHTDEVICE</h3>
 <ul>
   <p>acts as a fhem-device that is mapped to <a href="http://mqtt.org/">mqtt</a>-topics.</p>
-  <p>requires a <a href="#MQTT">MQTT</a>-device as IODev<br/>
-     Note: this module is based on <a href="https://metacpan.org/pod/distribution/Net-MQTT/lib/Net/MQTT.pod">Net::MQTT</a> which needs to be installed from CPAN first.</p>
+  <p>Requirements:</p>
+	<li> <a href="#MQTT">MQTT</a>-device as IODev<br/>
+     Note: this module is based on <a href="https://metacpan.org/pod/distribution/Net-MQTT/lib/Net/MQTT.pod">Net::MQTT</a> which needs to be installed from CPAN first.
+	</p></li>
+	<li>  <p> perl module JSON<br> Use "cpan install JSON" or operating system's package manager to install Perl JSON module. Depending on your os the required package is named libjson-perl or perl-JSON.
+    </li>
+</ul><br>
   <a name="MQTT_DEVICEdefine"></a>
   <p><b>Define</b></p>
   <ul>
@@ -348,7 +365,7 @@ sub dynDevStateIcon($$) {
   <p>Example: <code>define myFirstMQTT_Milight_Device 0xAB12 2 rgbw myBroker</code><br/>
 	would create a device on channel 2, sending and receiving commands using Milight ID 0xAB12 and also listen to codes sent by a remote to the entire group</br>
   
-  <a name="MQTT_DEVICEset"></a>
+  <a name="MQTT_MILIGHTDEVICEset"></a>
   <p><b>Set</b></p>
   <ul>
     <li>
@@ -366,7 +383,7 @@ sub dynDevStateIcon($$) {
       <code>attr mqttest eventMap { dev=>{ 'true'=>'on', 'false'=>'off' }, usr=>{ '^on$'=>'true', '^off$'=>'false' }, fw=>{ '^on$'=>'on', '^off$'=>'off' } }</code></p>
     </li>
   </ul>
-  <a name="MQTT_DEVICEattr"></a>
+  <a name="MQTT_MILIGHTDEVICEattr"></a>
   <p><b>Attributes</b></p>
   <ul>
     <li>
