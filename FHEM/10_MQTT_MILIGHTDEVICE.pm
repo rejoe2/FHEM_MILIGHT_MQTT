@@ -106,8 +106,11 @@ sub Define() {
   return "too few parameters: define <name> MQTT_MILIGHTDEVICE <bridgeID> <slot> <bridgeType> <IO-Name>" if( @args != 6 );
   return "ERROR: Perl module JSON is not installed!" if (isPmNotInstalled($hash,"JSON"));
   my ($name, $devtype, $bridgeID, $slot, $bridgeType, $myBroker) = @args;
+  return "ERROR: bridgeTxpe has to be one of rgbw, rgb_cct or cct" if ($bridgeType ne 
+  "rgbw" or $bridgeType ne "rgb_cct" or $bridgeType ne 
+  "cct";
   $hash->{sets} = {};
-  MQTT::Client_Define($hash,$name);
+  #MQTT::Client_Define($hash,$name);
   CommandAttr(undef,"$hash->{NAME} webCmd level:hue:command") unless (AttrVal($name,"webCmd",undef));
   CommandAttr(undef,"$hash->{NAME} stateFormat status");# unless (AttrVal($name,"stateFormat",undef));
   CommandAttr(undef,"$hash->{NAME} useSetExtensions 1") unless (AttrVal($name,"useSetExtensions",undef));
@@ -117,12 +120,12 @@ sub Define() {
   CommandAttr(undef,"$hash->{NAME} eventMap /set_white:Weiss/ /night_mode:Nacht/ /white_mode:white/ /status ON:on/ /status OFF:off/") unless (AttrVal($name,"eventMap",undef));
   CommandAttr(undef,"$hash->{NAME} subscribeReading_status milight/states/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"subscribeReading_status",undef));
   CommandAttr(undef,"$hash->{NAME} subscribeReading_groupState milight/states/$bridgeID/$bridgeType/0") unless (AttrVal($name,"subscribeReading_groupState",undef) and $slot);
-  unless (AttrVal($name,"subscribeReading_update",undef)) {
-    my $subscription = "";
-    $subscription = "milight/updates/$bridgeID/$bridgeType/$slot" unless $slot;
-    $subscription = "milight/updates/$bridgeID/$bridgeType/$slot,milight/updates/$bridgeID/$bridgeType/0" if $slot;
-    CommandAttr(undef,"$hash->{NAME} subscribeReading_update $subscription") unless (AttrVal($name,"subscribeReading_update",undef));
-  }	
+  #unless (AttrVal($name,"subscribeReading_update",undef)) {
+    #my $subscription = "";
+    #$subscription = "milight/updates/$bridgeID/$bridgeType/$slot" unless $slot;
+    #$subscription = "milight/updates/$bridgeID/$bridgeType/$slot,milight/updates/$bridgeID/$bridgeType/0" if $slot;
+    #CommandAttr(undef,"$hash->{NAME} subscribeReading_update $subscription") unless (AttrVal($name,"subscribeReading_update",undef));
+  #}	
   CommandAttr(undef,"$hash->{NAME} icon light_control") unless (AttrVal($name,"icon",undef));
   CommandAttr(undef,"$hash->{NAME} publishSet_brightness milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_brightness",undef));
   CommandAttr(undef,"$hash->{NAME} publishSet_command set_white level_up level_down next_mode previous_mode temperature_up temperature_down milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_command",undef));
@@ -323,7 +326,7 @@ sub dynDevStateIcon($$) {
   Log3($name,5,"NAME: $name, LEDTYPE: $ledtype, $s, $rgbvalue");
   # Return SVG icon with toggle as default action (for White bulbs or if in a somehow white mode)
   return "(ON|ON.*):light_light_dim_10:off OF.*:light_light_dim_00:on" if (ReadingsVal($name,"command","color") eq "night_mode");
-  return "(ON|ON.*):light_light_$s:off OF.*:light_light_dim_00:on" if ($ledtype ne "rgbw" and $ledtype ne "rgb" or $rgbvalue eq "FFFFFF" or ReadingsVal($name,"command","color") eq "white_mode" or ReadingsVal($name,"command","color") eq "set_white");
+  return "(ON|ON.*):light_light_$s:off OF.*:light_light_dim_00:on" if ($ledtype ne "rgbw" and and $ledtype ne "rgb_cct" or $rgbvalue eq "FFFFFF" or ReadingsVal($name,"command","color") eq "white_mode" or ReadingsVal($name,"command","color") eq "set_white");
   return "(ON|ON.*):light_light_$s@#$rgbvalue:off OF.*:light_light_dim_00:on";
 }
 
