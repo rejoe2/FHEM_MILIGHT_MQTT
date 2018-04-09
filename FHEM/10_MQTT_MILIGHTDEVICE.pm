@@ -322,7 +322,8 @@ sub dynDevStateIcon($$) {
   # Return SVG coloured icon with toggle as default action
   Log3($name,5,"NAME: $name, LEDTYPE: $ledtype, $s, $rgbvalue");
   # Return SVG icon with toggle as default action (for White bulbs or if in a somehow white mode)
-  return "(ON|ON.*):light_light_$s:off OF.*:light_light_dim_00:on" if ($ledtype ne "rgbw" and $ledtype ne "rgb" or $rgbvalue eq "FFFFFF" or ReadingsVal($name,"command","color") eq "white_mode" or ReadingsVal($name,"command","color") eq "night_mode" or ReadingsVal($name,"command","color") eq "set_white");
+  return "(ON|ON.*):light_light_dim_10:off OF.*:light_light_dim_00:on" if (ReadingsVal($name,"command","color") eq "night_mode");
+  return "(ON|ON.*):light_light_$s:off OF.*:light_light_dim_00:on" if ($ledtype ne "rgbw" and $ledtype ne "rgb" or $rgbvalue eq "FFFFFF" or ReadingsVal($name,"command","color") eq "white_mode" or ReadingsVal($name,"command","color") eq "set_white");
   return "(ON|ON.*):light_light_$s@#$rgbvalue:off OF.*:light_light_dim_00:on";
 }
 
