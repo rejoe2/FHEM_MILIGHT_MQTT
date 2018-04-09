@@ -21,7 +21,7 @@
 #     You should have received a copy of the GNU General Public License
 #     along with fhem.  If not, see <http://www.gnu.org/licenses/>.
 #
-# $Id: 10_MQTT_DEVICE.pm 1 2018-04-05 14:00:00Z Beta-User $
+# $Id: 10_MQTT_DEVICE.pm 1 2018-04-09 12:30:00Z Beta-User $
 #
 ##############################################
 
