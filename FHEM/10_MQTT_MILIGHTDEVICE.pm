@@ -106,15 +106,13 @@ sub Define() {
   return "too few parameters: define <name> MQTT_MILIGHTDEVICE <bridgeID> <slot> <bridgeType> <IO-Name>" if( @args != 6 );
   return "ERROR: Perl module JSON is not installed!" if (isPmNotInstalled($hash,"JSON"));
   my ($name, $devtype, $bridgeID, $slot, $bridgeType, $myBroker) = @args;
-  return "ERROR: bridgeTxpe has to be one of rgbw, rgb_cct or cct" if ($bridgeType ne 
-  "rgbw" or $bridgeType ne "rgb_cct" or $bridgeType ne 
-  "cct";
+  return "ERROR: bridgeTxpe has to be one of rgbw, rgb_cct or cct" if ($bridgeType ne "rgbw" or $bridgeType ne "rgb_cct" or $bridgeType ne "cct");
   $hash->{sets} = {};
   #MQTT::Client_Define($hash,$name);
-  $attr{$name}{room} = "MQTT" unless(defined($attr{$name}{room}));
-  unless (defined($attr{$name}{webCmd})) {
-    $attr{$name}{webCmd} = "level:hue:command") if $bridgeType eq "rgbw" or $bridgeType eq "rgb_cct" ));
-	$attr{$name}{webCmd} = "level:command") if $bridgeType eq "cct" ));
+  CommandAttr(undef,"$hash->{NAME} room MQTT") unless(AttrVal($name,"room",undef));
+  unless (AttrVal($name,"webCmd",undef)) {
+    CommandAttr(undef,"$hash->{NAME} webCmd level:hue:command") if $bridgeType eq "rgbw" or $bridgeType eq "rgb_cct";
+    CommandAttr(undef,"$hash->{NAME} webCmd level:command") if $bridgeType eq "cct";
   }
   CommandAttr(undef,"$hash->{NAME} stateFormat status");# unless (AttrVal($name,"stateFormat",undef));
   CommandAttr(undef,"$hash->{NAME} useSetExtensions 1") unless (AttrVal($name,"useSetExtensions",undef));
@@ -303,13 +301,13 @@ sub onmessage($$$) {
     my $jsonlist = decode_json($message);
     while( my ($key,$value) = each %{$jsonlist} ) {
       if (ref($value) eq 'HASH' ) {
-        while( my ($key1,$value1) = each %{$value}) {                                       
+        while( my ($key1,$value1) = each %{$value}) {
             Log3 $hash->{NAME}, 4, "$hash->{NAME}: decoding recursive JSON in hash while, key1 = $key1, value1 = $value1";
-            readingsSingleUpdate($hash,$key1,$value1,1);        
-        }                                                                           
-      } else {     
+            readingsSingleUpdate($hash,$key1,$value1,1);
+        }
+      } else {
         readingsSingleUpdate($hash,$key,$value,1);
-	Log3($hash->{NAME},5,"calling readingsSingleUpdate($hash->{NAME} (loop),$key,$value,1");
+    Log3($hash->{NAME},5,"calling readingsSingleUpdate($hash->{NAME} (loop),$key,$value,1");
       }
     }
   } elsif ($topic =~ $hash->{'.autoSubscribeExpr'}) {
@@ -326,11 +324,13 @@ sub dynDevStateIcon($$) {
   my $number = (ReadingsVal($name,"level","100")+4)/10;
   my $s = $dim_values{sprintf("%.0f", $number)};
   my $rgbvalue = sprintf("%02X",ReadingsVal($name,'r','255')).sprintf("%02X",ReadingsVal($name,'g','255')).sprintf("%02X",ReadingsVal($name,'b','255'));
-  # Return SVG coloured icon with toggle as default action
+  readingsSingleUpdate($hash,"RGB",$rgbvalue,1);
+  
+# Return SVG coloured icon with toggle as default action
   Log3($name,5,"NAME: $name, LEDTYPE: $ledtype, $s, $rgbvalue");
   # Return SVG icon with toggle as default action (for White bulbs or if in a somehow white mode)
   return "(ON|ON.*):light_light_dim_10:off OF.*:light_light_dim_00:on" if (ReadingsVal($name,"command","color") eq "night_mode");
-  return "(ON|ON.*):light_light_$s:off OF.*:light_light_dim_00:on" if ($ledtype ne "rgbw" and and $ledtype ne "rgb_cct" or $rgbvalue eq "FFFFFF" or ReadingsVal($name,"command","color") eq "white_mode" or ReadingsVal($name,"command","color") eq "set_white");
+  return "(ON|ON.*):light_light_$s:off OF.*:light_light_dim_00:on" if ($rgbvalue eq "FFFFFF" or (ReadingsVal($name,"command","color") eq "white_mode" or ReadingsVal($name,"command","color") eq "set_white") and main::ReadingsAge($name,"command","color")<main::ReadingsAge($name,"bulb_mode","color")); #if ($ledtype ne "rgbw" and $ledtype ne "rgb_cct" or $rgbvalue eq "FFFFFF" or ReadingsVal($name,"command","color") eq "white_mode" or ReadingsVal($name,"command","color") eq "set_white");
   return "(ON|ON.*):light_light_$s@#$rgbvalue:off OF.*:light_light_dim_00:on";
 }
 
@@ -358,10 +358,10 @@ sub isPmNotInstalled($$) {
 <ul>
   <p>acts as a fhem-device that is mapped to <a href="http://mqtt.org/">mqtt</a>-topics.</p>
   <p>Requirements:</p>
-	<li> <a href="#MQTT">MQTT</a>-device as IODev<br/>
+    <li> <a href="#MQTT">MQTT</a>-device as IODev<br/>
      Note: this module is based on <a href="https://metacpan.org/pod/distribution/Net-MQTT/lib/Net/MQTT.pod">Net::MQTT</a> which needs to be installed from CPAN first.
-	</p></li>
-	<li>  <p> perl module JSON<br> Use "cpan install JSON" or operating system's package manager to install Perl JSON module. Depending on your os the required package is named libjson-perl or perl-JSON.
+    </p></li>
+    <li>  <p> perl module JSON<br> Use "cpan install JSON" or operating system's package manager to install Perl JSON module. Depending on your os the required package is named libjson-perl or perl-JSON.
     </li>
 </ul><br>
   <a name="MQTT_DEVICEdefine"></a>
@@ -371,7 +371,7 @@ sub isPmNotInstalled($$) {
        Specifies the MQTT-Milight device.</p>
   </ul>
   <p>Example: <code>define myFirstMQTT_Milight_Device 0xAB12 2 rgbw myBroker</code><br/>
-	would create a device on channel 2, sending and receiving commands using Milight ID 0xAB12 and also listen to codes sent by a remote to the entire group</br>
+    would create a device on channel 2, sending and receiving commands using Milight ID 0xAB12 and also listen to codes sent by a remote to the entire group</br>
   
   <a name="MQTT_MILIGHTDEVICEset"></a>
   <p><b>Set</b></p>
