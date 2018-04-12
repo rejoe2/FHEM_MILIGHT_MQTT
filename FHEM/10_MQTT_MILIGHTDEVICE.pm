@@ -323,8 +323,13 @@ sub dynDevStateIcon($$) {
   my $name = $hash->{NAME};
   my $number = (ReadingsVal($name,"level","100")+4)/10;
   my $s = $dim_values{sprintf("%.0f", $number)};
-  my $rgbvalue = sprintf("%02X",ReadingsVal($name,'r','255')).sprintf("%02X",ReadingsVal($name,'g','255')).sprintf("%02X",ReadingsVal($name,'b','255'));
-  readingsSingleUpdate($hash,"RGB",$rgbvalue,1);
+  my @rgb = Color::hsb2rgb(ReadingsVal($name,"hue","356"),ReadingsVal($name,"saturation","255"),ReadingsVal($name,"brightness","255"));
+  my $r   = int( $rgb[0] );
+  my $g   = int( $rgb[1] );
+  my $b   = int( $rgb[2] );
+
+  my $rgbvalue = sprintf("%02X",$r).sprintf("%02X",$g).sprintf("%02X",$b);
+#  readingsSingleUpdate($hash,"RGB",$rgbvalue,1);
   
 # Return SVG coloured icon with toggle as default action
   Log3($name,5,"NAME: $name, LEDTYPE: $ledtype, $s, $rgbvalue");
