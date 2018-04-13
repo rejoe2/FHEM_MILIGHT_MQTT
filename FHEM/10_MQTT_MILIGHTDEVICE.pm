@@ -4,7 +4,8 @@
 #
 # Copyright (C) 2017 Stephan Eisler
 # Copyright (C) 2014 - 2016 Norbert Truchsess
-#
+# Modified 2017 for sidoh ESP Milight Hub by lufi@Forum.FHEM.de: https://forum.fhem.de/index.php/topic,75144.msg674649.html#msg674649
+# Extended version by Beta-User@Forum.FHEM.de 2018
 #     This file is part of fhem.
 #
 #     Fhem is free software: you can redistribute it and/or modify
@@ -20,7 +21,7 @@
 #     You should have received a copy of the GNU General Public License
 #     along with fhem.  If not, see <http://www.gnu.org/licenses/>.
 #
-# $Id: 10_MQTT_DEVICE.pm 16252 2018-02-23 21:32:59Z eisler $
+# $Id: 10_MQTT_DEVICE.pm 1 2018-04-09 12:45:00Z Beta-User $
 #
 ##############################################
 
@@ -34,6 +35,8 @@ my %gets = (
 sub MQTT_MILIGHTDEVICE_Initialize($) {
 
   my $hash = shift @_;
+
+  require "$main::attr{global}{modpath}/FHEM/00_MQTT.pm";
 
   # Consumer
   $hash->{DefFn}    = "MQTT::MILIGHTDEVICE::Define";
@@ -52,7 +55,6 @@ sub MQTT_MILIGHTDEVICE_Initialize($) {
     "publishSet_.* ".
     "subscribeReading_.* ".
     "autoSubscribeReadings ".
-#    "sendJson:0,1 ". # evtl. Umsetzungscode als Option? '{\"$command\":\"$value\"}'
     "useSetExtensions:1,0 ".
     $main::readingFnAttributes;
     
@@ -65,9 +67,24 @@ use strict;
 use warnings;
 use GPUtils qw(:all);
 
+
 use Net::MQTT::Constants;
 use SetExtensions qw/ :all /;
 use JSON::XS;
+
+my %dim_values = (
+   0 => "dim_00",
+   1 => "dim_10",
+   2 => "dim_20",
+   3 => "dim_30",
+   4 => "dim_40",
+   5 => "dim_50",
+   6 => "dim_60",
+   7 => "dim_70",
+   8 => "dim_80",
+   9 => "dim_90",
+  10 => "dim_100",
+);
 
 BEGIN {
   MQTT->import(qw(:all));
@@ -89,37 +106,40 @@ BEGIN {
 sub Define() {
   my ( $hash, $def ) = @_;
   my @args = split("[ \t][ \t]*", $def);
-  my ($name, $devtype, $bridgeID, $slot, $bridgeType) = @args;
+  return "too few parameters: define <name> MQTT_MILIGHTDEVICE <bridgeID> <slot> <bridgeType> <IO-Name>" if( @args != 6 );
+  return "ERROR: Perl module JSON is not installed!" if (isPmNotInstalled($hash,"JSON"));
+  my ($name, $devtype, $bridgeID, $slot, $bridgeType, $myBroker) = @args;
+  return "ERROR: bridgeType has to be one of rgbw, rgb_cct or cct" unless ($bridgeType eq "rgbw" or $bridgeType eq "rgb_cct" or $bridgeType eq "cct");
   $hash->{sets} = {};
-  MQTT::Client_Define($hash,$name);
-  CommandAttr(undef,"$hash->{NAME} webCmd brightness:hue:command");# unless (AttrVal($name,"webCmd",undef));
-  CommandAttr(undef,"$hash->{NAME} stateFormat status");# unless (AttrVal($name,"stateFormat",undef));
-  CommandAttr(undef,"$hash->{NAME} widgetOverride command:uzsuSelectRadio,Weiss,Nacht hue:colorpicker,HUE,0,1,359 brightness:colorpicker,BRI,0,1,255");# unless (AttrVal($name,"widgetOverride",undef));
-  CommandAttr(undef,"$hash->{NAME} devStateIcon ON:light_light_dim_50@#0ABF01:off OFF:light_light_dim_00:on");# unless (AttrVal($name,"devStateIcon",undef));
-  #unless (AttrVal($name,"devStateIcon",undef)){
-#	my $dynicon = getIconCode($name,$bridgeType);
-#	CommandAttr(undef,"$hash->{NAME} devStateIcon $dynicon") ;
-#    }
-  CommandAttr(undef,"$hash->{NAME} eventMap /set_white:Weiss/ /night_mode:Nacht/ /white_mode:white/ /status ON:on/ /status OFF:off/");# unless (AttrVal($name,"eventMap",undef));
-  CommandAttr(undef,"$hash->{NAME} subscribeReading_status milight/state/$bridgeID/$bridgeType/$slot");# unless (AttrVal($name,"subscribeReading_status",undef));
-  unless (AttrVal($name,"subscribeReading_update",undef)) {
-    my $subscription = "";
-    $subscription = "milight/updates/$bridgeID/$bridgeType/$slot" unless $slot;
-    $subscription = "milight/updates/$bridgeID/$bridgeType/$slot,milight/updates/$bridgeID/$bridgeType/0" if $slot;
-    CommandAttr(undef,"$hash->{NAME} subscribeReading_update $subscription");# unless (AttrVal($name,"subscribeReading_update",undef));
-  }	
+  #MQTT::Client_Define($hash,$name);
+  CommandAttr(undef,"$hash->{NAME} room MQTT") unless(AttrVal($name,"room",undef));
+  unless (AttrVal($name,"webCmd",undef)) {
+    CommandAttr(undef,"$hash->{NAME} webCmd level:hue:command") if $bridgeType eq "rgbw" or $bridgeType eq "rgb_cct";
+    CommandAttr(undef,"$hash->{NAME} webCmd level:command") if $bridgeType eq "cct";
+  }
+  CommandAttr(undef,"$hash->{NAME} useSetExtensions 1") unless (AttrVal($name,"useSetExtensions",undef));
+  CommandAttr(undef,"$hash->{NAME} widgetOverride command:uzsuSelectRadio,Weiss,Nacht hue:colorpicker,HUE,0,1,359 level:colorpicker,BRI,0,1,100") unless (AttrVal($name,"widgetOverride",undef));
+  #CommandAttr(undef,"$hash->{NAME} devStateIcon ON:light_light_dim_50@#0ABF01:off OF.*:light_light_dim_00:on") unless (AttrVal($name,"devStateIcon",undef)) ;
+  CommandAttr(undef,"$hash->{NAME} devStateIcon {MQTT::MILIGHTDEVICE::dynDevStateIcon(\$name,\"$bridgeType\")}") unless (AttrVal($name,"devStateIcon",undef)) ;
+  CommandAttr(undef,"$hash->{NAME} eventMap /set_white:Weiss/ /night_mode:Nacht/ /white_mode:white/ /state ON:on/ /state OFF:off/") unless (AttrVal($name,"eventMap",undef));
+  CommandAttr(undef,"$hash->{NAME} subscribeReading_state milight/states/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"subscribeReading_state",undef));
+  CommandAttr(undef,"$hash->{NAME} subscribeReading_groupState milight/states/$bridgeID/$bridgeType/0") unless (AttrVal($name,"subscribeReading_groupState",undef) and $slot);
+  #unless (AttrVal($name,"subscribeReading_update",undef)) {
+    #my $subscription = "";
+    #$subscription = "milight/updates/$bridgeID/$bridgeType/$slot" unless $slot;
+    #$subscription = "milight/updates/$bridgeID/$bridgeType/$slot,milight/updates/$bridgeID/$bridgeType/0" if $slot;
+    #CommandAttr(undef,"$hash->{NAME} subscribeReading_update $subscription") unless (AttrVal($name,"subscribeReading_update",undef));
+  #}	
   CommandAttr(undef,"$hash->{NAME} icon light_control") unless (AttrVal($name,"icon",undef));
-  CommandAttr(undef,"$hash->{NAME} publishSet_brightness milight/$bridgeID/$bridgeType/$slot");# unless (AttrVal($name,"publishSet_brightness",undef));
+  CommandAttr(undef,"$hash->{NAME} publishSet_brightness milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_brightness",undef));
   CommandAttr(undef,"$hash->{NAME} publishSet_command set_white level_up level_down next_mode previous_mode temperature_up temperature_down milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_command",undef));
   CommandAttr(undef,"$hash->{NAME} publishSet_hue milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_hue",undef));
   CommandAttr(undef,"$hash->{NAME} publishSet_level milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_level",undef));
   CommandAttr(undef,"$hash->{NAME} publishSet_state ON OFF milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_state",undef));
-  CommandAttr(undef,"$hash->{NAME} publishSet_status ON OFF milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_status",undef));
+#  CommandAttr(undef,"$hash->{NAME} publishSet_status ON OFF milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_status",undef));
   CommandAttr(undef,"$hash->{NAME} stateFormat state") unless (AttrVal($name,"stateFormat",undef));
-
+  CommandAttr(undef,"$hash->{NAME} IODev $myBroker") unless (AttrVal($name,"IODev",undef));
   
-    #{my $power=ReadingsVal($name,"status","OFF");if($power eq "OFF"){Color::devStateIcon($name,"status",undef,"status");}else{Color::devStateIcon($name,"dimmer",undef,"bright")}}' if (!defined($attr{$name}{devStateIcon}) && defined($model) && ($model eq "mono" || $model eq "desklamp"));
-    #$attr{$name}{devStateIcon} = '{my $power=ReadingsVal($name,"status","OFF");if($power eq "OFF"){Color::devStateIcon($name,"status",undef,"status");}else{Color::devStateIcon($name,"dimmer",undef,"bright")}}' if (!defined($attr{$name}{devStateIcon}) && defined($model) && ($model eq "mono" || $model eq "desklamp"));
   return MQTT::Client_Define($hash,$def);
 };
 
@@ -201,17 +221,6 @@ sub Attr($$$$) {
       }
       last;
     };
-    
-    $attribute eq "sendJson" and do {
-      if ($command eq "set") {
-        $hash->{'.sendJson'} = $value;
-      } else {
-        if (defined $hash->{'.sendJson'}) {
-          delete $hash->{'.sendJson'};
-        }
-      }
-      last;
-    };
 
     $attribute eq "autoSubscribeReadings" and do {
       if ($command eq "set") {
@@ -282,8 +291,15 @@ sub onmessage($$$) {
     Log3($hash->{NAME},5,"calling readingsBulkUpdate($hash->{NAME},$reading,$message,1");
     my $jsonlist = decode_json($message);
     while( my ($key,$value) = each %{$jsonlist} ) {
-      readingsSingleUpdate($hash,$key,$value,1);
-      Log3($hash->{NAME},5,"calling readingsSingleUpdate($hash->{NAME} (loop),$key,$value,1");
+      if (ref($value) eq 'HASH' ) {
+        while( my ($key1,$value1) = each %{$value}) {
+            Log3 $hash->{NAME}, 4, "$hash->{NAME}: decoding recursive JSON in hash while, key1 = $key1, value1 = $value1";
+            readingsSingleUpdate($hash,$key1,$value1,1);
+        }
+      } else {
+        readingsSingleUpdate($hash,$key,$value,1);
+    Log3($hash->{NAME},5,"calling readingsSingleUpdate($hash->{NAME} (loop),$key,$value,1");
+      }
     }
   } elsif ($topic =~ $hash->{'.autoSubscribeExpr'}) {
     Log3($hash->{NAME},5,"calling readingsSingleUpdate($hash->{NAME},$1,$message,1");
@@ -292,27 +308,68 @@ sub onmessage($$$) {
   }
 }
 
+sub dynDevStateIcon($$) {
+  my($hash,$ledtype) = @_;
+  $hash = $main::defs{$hash} if(ref($hash) ne 'HASH');
+  my $name = $hash->{NAME};
+  my $number = (ReadingsVal($name,"level","100")+4)/10;
+  my $s = $dim_values{sprintf("%.0f", $number)};
+  my @rgb = Color::hsb2rgb(ReadingsVal($name,"hue","356"),ReadingsVal($name,"saturation","255"),ReadingsVal($name,"brightness","255"));
+  my $r   = int( $rgb[0] );
+  my $g   = int( $rgb[1] );
+  my $b   = int( $rgb[2] );
+
+  my $rgbvalue = sprintf("%02X",$r).sprintf("%02X",$g).sprintf("%02X",$b);
+#  readingsSingleUpdate($hash,"RGB",$rgbvalue,1);
+  
+# Return SVG coloured icon with toggle as default action
+  Log3($name,5,"NAME: $name, LEDTYPE: $ledtype, $s, $rgbvalue");
+  # Return SVG icon with toggle as default action (for White bulbs or if in a somehow white mode)
+  return "(ON|ON.*):light_light_dim_10:off OF.*:light_light_dim_00:on" if (ReadingsVal($name,"command","color") eq "night_mode");
+  return "(ON|ON.*):light_light_$s:off OF.*:light_light_dim_00:on" if ($rgbvalue eq "FFFFFF" or (ReadingsVal($name,"command","color") eq "white_mode" or ReadingsVal($name,"command","color") eq "set_white") and main::ReadingsAge($name,"command","color")<main::ReadingsAge($name,"bulb_mode","color")); #if ($ledtype ne "rgbw" and $ledtype ne "rgb_cct" or $rgbvalue eq "FFFFFF" or ReadingsVal($name,"command","color") eq "white_mode" or ReadingsVal($name,"command","color") eq "set_white");
+  return "(ON|ON.*):light_light_$s@#$rgbvalue:off OF.*:light_light_dim_00:on";
+}
+
+sub isPmNotInstalled($$) {
+  my ($hash,$pm) = @_;
+  my ($name,$type) = ($hash->{NAME},$hash->{TYPE});
+  if (not eval "use $pm;1") 
+  {
+    Log3 $name, 1, "$type $name: perl modul missing: $pm. Install it, please.";
+    $hash->{MISSING_MODULES} .= "$pm ";
+    return "failed: $pm";
+  }
+  return undef;
+}
 
 1;
 
 =pod
 =item [device]
-=item summary MQTT_MILIGHTDEVICE acts as a fhem-device that is mapped to mqtt-topics
+=item summary MQTT_MILIGHTDEVICE acts as a fhem-device that is mapped to mqtt-topics. This is a version adopted to the ESP-Milight-Hub provided by Chris Mullins. Details on this project see https://github.com/sidoh/esp8266_milight_hub
 =begin html
 
 <a name="MQTT_MILIGHTDEVICE"></a>
-<h3>MQTT_DEVICE</h3>
+<h3>MQTT_MILIGHTDEVICE</h3>
 <ul>
   <p>acts as a fhem-device that is mapped to <a href="http://mqtt.org/">mqtt</a>-topics.</p>
-  <p>requires a <a href="#MQTT">MQTT</a>-device as IODev<br/>
-     Note: this module is based on <a href="https://metacpan.org/pod/distribution/Net-MQTT/lib/Net/MQTT.pod">Net::MQTT</a> which needs to be installed from CPAN first.</p>
+  <p>Requirements:</p>
+    <li> <a href="#MQTT">MQTT</a>-device as IODev<br/>
+     Note: this module is based on <a href="https://metacpan.org/pod/distribution/Net-MQTT/lib/Net/MQTT.pod">Net::MQTT</a> which needs to be installed from CPAN first.
+    </p></li>
+    <li>  <p> perl module JSON<br> Use "cpan install JSON" or operating system's package manager to install Perl JSON module. Depending on your os the required package is named libjson-perl or perl-JSON.
+    </li>
+</ul><br>
   <a name="MQTT_DEVICEdefine"></a>
   <p><b>Define</b></p>
   <ul>
-    <p><code>define &lt;name&gt; MQTT_DEVICE</code><br/>
-       Specifies the MQTT device.</p>
+    <p><code>define &lt;name&gt; MQTT_MILIGHTDEVICE &lt;Bridge ID&gt; &lt;Slot&gt; &lt;Bridge Type&gt; &lt;IO-Device&gt;</code><br/>
+       Specifies the MQTT-Milight device.</p>
   </ul>
-  <a name="MQTT_DEVICEset"></a>
+  <p>Example: <code>define myFirstMQTT_Milight_Device 0xAB12 2 rgbw myBroker</code><br/>
+    would create a device on channel 2, sending and receiving commands using Milight ID 0xAB12 and also listen to codes sent by a remote to the entire group</br>
+  
+  <a name="MQTT_MILIGHTDEVICEset"></a>
   <p><b>Set</b></p>
   <ul>
     <li>
@@ -330,7 +387,7 @@ sub onmessage($$$) {
       <code>attr mqttest eventMap { dev=>{ 'true'=>'on', 'false'=>'off' }, usr=>{ '^on$'=>'true', '^off$'=>'false' }, fw=>{ '^on$'=>'on', '^off$'=>'off' } }</code></p>
     </li>
   </ul>
-  <a name="MQTT_DEVICEattr"></a>
+  <a name="MQTT_MILIGHTDEVICEattr"></a>
   <p><b>Attributes</b></p>
   <ul>
     <li>
