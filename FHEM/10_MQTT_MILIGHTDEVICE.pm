@@ -36,6 +36,8 @@ sub MQTT_MILIGHTDEVICE_Initialize($) {
 
   my $hash = shift @_;
 
+  require "$main::attr{global}{modpath}/FHEM/00_MQTT.pm";
+
   # Consumer
   $hash->{DefFn}    = "MQTT::MILIGHTDEVICE::Define";
   $hash->{UndefFn}  = "MQTT::Client_Undefine";
@@ -64,6 +66,7 @@ package MQTT::MILIGHTDEVICE;
 use strict;
 use warnings;
 use GPUtils qw(:all);
+
 
 use Net::MQTT::Constants;
 use SetExtensions qw/ :all /;
@@ -106,7 +109,7 @@ sub Define() {
   return "too few parameters: define <name> MQTT_MILIGHTDEVICE <bridgeID> <slot> <bridgeType> <IO-Name>" if( @args != 6 );
   return "ERROR: Perl module JSON is not installed!" if (isPmNotInstalled($hash,"JSON"));
   my ($name, $devtype, $bridgeID, $slot, $bridgeType, $myBroker) = @args;
-  return "ERROR: bridgeTxpe has to be one of rgbw, rgb_cct or cct" if ($bridgeType ne "rgbw" or $bridgeType ne "rgb_cct" or $bridgeType ne "cct");
+  return "ERROR: bridgeType has to be one of rgbw, rgb_cct or cct" unless ($bridgeType eq "rgbw" or $bridgeType eq "rgb_cct" or $bridgeType eq "cct");
   $hash->{sets} = {};
   #MQTT::Client_Define($hash,$name);
   CommandAttr(undef,"$hash->{NAME} room MQTT") unless(AttrVal($name,"room",undef));
@@ -114,13 +117,12 @@ sub Define() {
     CommandAttr(undef,"$hash->{NAME} webCmd level:hue:command") if $bridgeType eq "rgbw" or $bridgeType eq "rgb_cct";
     CommandAttr(undef,"$hash->{NAME} webCmd level:command") if $bridgeType eq "cct";
   }
-  CommandAttr(undef,"$hash->{NAME} stateFormat status");# unless (AttrVal($name,"stateFormat",undef));
   CommandAttr(undef,"$hash->{NAME} useSetExtensions 1") unless (AttrVal($name,"useSetExtensions",undef));
   CommandAttr(undef,"$hash->{NAME} widgetOverride command:uzsuSelectRadio,Weiss,Nacht hue:colorpicker,HUE,0,1,359 level:colorpicker,BRI,0,1,100") unless (AttrVal($name,"widgetOverride",undef));
   #CommandAttr(undef,"$hash->{NAME} devStateIcon ON:light_light_dim_50@#0ABF01:off OF.*:light_light_dim_00:on") unless (AttrVal($name,"devStateIcon",undef)) ;
   CommandAttr(undef,"$hash->{NAME} devStateIcon {MQTT::MILIGHTDEVICE::dynDevStateIcon(\$name,\"$bridgeType\")}") unless (AttrVal($name,"devStateIcon",undef)) ;
-  CommandAttr(undef,"$hash->{NAME} eventMap /set_white:Weiss/ /night_mode:Nacht/ /white_mode:white/ /status ON:on/ /status OFF:off/") unless (AttrVal($name,"eventMap",undef));
-  CommandAttr(undef,"$hash->{NAME} subscribeReading_status milight/states/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"subscribeReading_status",undef));
+  CommandAttr(undef,"$hash->{NAME} eventMap /set_white:Weiss/ /night_mode:Nacht/ /white_mode:white/ /state ON:on/ /state OFF:off/") unless (AttrVal($name,"eventMap",undef));
+  CommandAttr(undef,"$hash->{NAME} subscribeReading_state milight/states/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"subscribeReading_state",undef));
   CommandAttr(undef,"$hash->{NAME} subscribeReading_groupState milight/states/$bridgeID/$bridgeType/0") unless (AttrVal($name,"subscribeReading_groupState",undef) and $slot);
   #unless (AttrVal($name,"subscribeReading_update",undef)) {
     #my $subscription = "";
@@ -134,8 +136,8 @@ sub Define() {
   CommandAttr(undef,"$hash->{NAME} publishSet_hue milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_hue",undef));
   CommandAttr(undef,"$hash->{NAME} publishSet_level milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_level",undef));
   CommandAttr(undef,"$hash->{NAME} publishSet_state ON OFF milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_state",undef));
-  CommandAttr(undef,"$hash->{NAME} publishSet_status ON OFF milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_status",undef));
-  CommandAttr(undef,"$hash->{NAME} stateFormat status") unless (AttrVal($name,"stateFormat",undef));
+#  CommandAttr(undef,"$hash->{NAME} publishSet_status ON OFF milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_status",undef));
+  CommandAttr(undef,"$hash->{NAME} stateFormat state") unless (AttrVal($name,"stateFormat",undef));
   CommandAttr(undef,"$hash->{NAME} IODev $myBroker") unless (AttrVal($name,"IODev",undef));
   
   return MQTT::Client_Define($hash,$def);
@@ -215,17 +217,6 @@ sub Attr($$$$) {
             CommandDeleteReading(undef,"$hash->{NAME} $1");
             last;
           }
-        }
-      }
-      last;
-    };
-    
-    $attribute eq "sendJson" and do {
-      if ($command eq "set") {
-        $hash->{'.sendJson'} = $value;
-      } else {
-        if (defined $hash->{'.sendJson'}) {
-          delete $hash->{'.sendJson'};
         }
       }
       last;
