@@ -116,9 +116,13 @@ sub Define() {
   unless (AttrVal($name,"webCmd",undef)) {
     CommandAttr(undef,"$hash->{NAME} webCmd level:hue:command") if $bridgeType eq "rgbw" or $bridgeType eq "rgb_cct";
     CommandAttr(undef,"$hash->{NAME} webCmd level:command") if $bridgeType eq "cct";
+	CommandAttr(undef,"$hash->{NAME} webCmd level:color_temp:command") if $bridgeType eq "cct_rgb";
   }
   CommandAttr(undef,"$hash->{NAME} useSetExtensions 1") unless (AttrVal($name,"useSetExtensions",undef));
-  CommandAttr(undef,"$hash->{NAME} widgetOverride command:uzsuSelectRadio,Weiss,Nacht hue:colorpicker,HUE,0,1,359 level:colorpicker,BRI,0,1,100") unless (AttrVal($name,"widgetOverride",undef));
+  unless (AttrVal($name,"widgetOverride",undef)) {
+	CommandAttr(undef,"$hash->{NAME} widgetOverride command:uzsuSelectRadio,Weiss,Nacht hue:colorpicker,HUE,0,1,359 level:colorpicker,BRI,0,1,100") if $bridgeType eq "cct" or $bridgeType eq "rgbw";
+	CommandAttr(undef,"$hash->{NAME} widgetOverride command:uzsuSelectRadio,Weiss,Nacht color_temp:colorpicker,CT,153,1,357 level:colorpicker,BRI,0,1,100") if $bridgeType eq "cct_rgb";
+  }
   #CommandAttr(undef,"$hash->{NAME} devStateIcon ON:light_light_dim_50@#0ABF01:off OF.*:light_light_dim_00:on") unless (AttrVal($name,"devStateIcon",undef)) ;
   CommandAttr(undef,"$hash->{NAME} devStateIcon {MQTT::MILIGHTDEVICE::dynDevStateIcon(\$name,\"$bridgeType\")}") unless (AttrVal($name,"devStateIcon",undef)) ;
   CommandAttr(undef,"$hash->{NAME} eventMap /set_white:Weiss/ /night_mode:Nacht/ /white_mode:white/ /state ON:on/ /state OFF:off/") unless (AttrVal($name,"eventMap",undef));
@@ -136,6 +140,10 @@ sub Define() {
   CommandAttr(undef,"$hash->{NAME} publishSet_hue milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_hue",undef));
   CommandAttr(undef,"$hash->{NAME} publishSet_level milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_level",undef));
   CommandAttr(undef,"$hash->{NAME} publishSet_state ON OFF milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_state",undef));
+  if ($bridgeType eq "cct_rgb") {
+	CommandAttr(undef,"$hash->{NAME} publishSet_color_temp milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_color_temp",undef));
+  }
+  
 #  CommandAttr(undef,"$hash->{NAME} publishSet_status ON OFF milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_status",undef));
   CommandAttr(undef,"$hash->{NAME} stateFormat state") unless (AttrVal($name,"stateFormat",undef));
   CommandAttr(undef,"$hash->{NAME} IODev $myBroker") unless (AttrVal($name,"IODev",undef));
@@ -298,7 +306,7 @@ sub onmessage($$$) {
         }
       } else {
         readingsSingleUpdate($hash,$key,$value,1);
-    Log3($hash->{NAME},5,"calling readingsSingleUpdate($hash->{NAME} (loop),$key,$value,1");
+		Log3($hash->{NAME},5,"calling readingsSingleUpdate($hash->{NAME} (loop),$key,$value,1");
       }
     }
   } elsif ($topic =~ $hash->{'.autoSubscribeExpr'}) {
