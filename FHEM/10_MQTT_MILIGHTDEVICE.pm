@@ -111,7 +111,7 @@ sub Define() {
   my ($name, $devtype, $bridgeID, $slot, $bridgeType, $myBroker) = @args;
   return "ERROR: bridgeType has to be one of rgbw, rgb_cct or cct" unless ($bridgeType eq "rgbw" or $bridgeType eq "rgb_cct" or $bridgeType eq "cct");
   $hash->{sets} = {};
-  #MQTT::Client_Define($hash,$name);
+  MQTT::Client_Define($hash,$name);
   CommandAttr(undef,"$hash->{NAME} room MQTT") unless(AttrVal($name,"room",undef));
   unless (AttrVal($name,"webCmd",undef)) {
     CommandAttr(undef,"$hash->{NAME} webCmd level:hue:command") if $bridgeType eq "rgbw" or $bridgeType eq "rgb_cct";
@@ -126,8 +126,8 @@ sub Define() {
   #CommandAttr(undef,"$hash->{NAME} devStateIcon ON:light_light_dim_50@#0ABF01:off OF.*:light_light_dim_00:on") unless (AttrVal($name,"devStateIcon",undef)) ;
   CommandAttr(undef,"$hash->{NAME} devStateIcon {MQTT::MILIGHTDEVICE::dynDevStateIcon(\$name,\"$bridgeType\")}") unless (AttrVal($name,"devStateIcon",undef)) ;
   CommandAttr(undef,"$hash->{NAME} eventMap /set_white:Weiss/night_mode:Nacht/white_mode:white/state ON:on/state OFF:off/") unless (AttrVal($name,"eventMap",undef));
-  CommandAttr(undef,"$hash->{NAME} subscribeReading_state milight/state/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"subscribeReading_state",undef));
-  CommandAttr(undef,"$hash->{NAME} subscribeReading_groupState milight/state/$bridgeID/$bridgeType/0") unless (AttrVal($name,"subscribeReading_groupState",undef) and $slot);
+  CommandAttr(undef,"$hash->{NAME} subscribeReading_state milight/states/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"subscribeReading_state",undef));
+  CommandAttr(undef,"$hash->{NAME} subscribeReading_groupState milight/states/$bridgeID/$bridgeType/0") unless (AttrVal($name,"subscribeReading_groupState",undef) and $slot);
   #unless (AttrVal($name,"subscribeReading_update",undef)) {
     #my $subscription = "";
     #$subscription = "milight/updates/$bridgeID/$bridgeType/$slot" unless $slot;
