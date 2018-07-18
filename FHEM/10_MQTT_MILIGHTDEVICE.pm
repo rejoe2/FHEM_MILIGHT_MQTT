@@ -111,12 +111,15 @@ sub Define() {
   my ($name, $devtype, $bridgeID, $slot, $bridgeType, $myBroker) = @args;
   return "ERROR: bridgeType has to be one of rgbw, rgb_cct or cct" unless ($bridgeType eq "rgbw" or $bridgeType eq "rgb_cct" or $bridgeType eq "cct");
   $hash->{sets} = {};
+  $hash->{TYPE} = 'MQTT_DEVICE';
   MQTT::Client_Define($hash,$name);
+  $hash->{TYPE} = $type;
+  $main::modules{MQTT_MILIGHTDEVICE}{defptr}{$id} = $hash;
   CommandAttr(undef,"$hash->{NAME} room MQTT") unless(AttrVal($name,"room",undef));
   unless (AttrVal($name,"webCmd",undef)) {
     CommandAttr(undef,"$hash->{NAME} webCmd level:hue:command") if $bridgeType eq "rgbw" or $bridgeType eq "rgb_cct";
     CommandAttr(undef,"$hash->{NAME} webCmd level:command") if $bridgeType eq "cct";
-	CommandAttr(undef,"$hash->{NAME} webCmd level:color_temp:command") if $bridgeType eq "cct_rgb";
+    CommandAttr(undef,"$hash->{NAME} webCmd level:color_temp:command") if $bridgeType eq "cct_rgb";
   }
   CommandAttr(undef,"$hash->{NAME} useSetExtensions 1") unless (AttrVal($name,"useSetExtensions",undef));
   unless (AttrVal($name,"widgetOverride",undef)) {
@@ -148,7 +151,7 @@ sub Define() {
   CommandAttr(undef,"$hash->{NAME} stateFormat state") unless (AttrVal($name,"stateFormat",undef));
   CommandAttr(undef,"$hash->{NAME} IODev $myBroker") unless (AttrVal($name,"IODev",undef));
   
-  return MQTT::Client_Define($hash,$def);
+  #return MQTT::Client_Define($hash,$def);
 };
 
 sub Set($$$@) {
