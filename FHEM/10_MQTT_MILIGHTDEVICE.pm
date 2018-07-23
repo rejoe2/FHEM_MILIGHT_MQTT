@@ -112,9 +112,9 @@ sub Define() {
   return "ERROR: bridgeType has to be one of rgbw, rgb_cct or cct" unless ($bridgeType eq "rgbw" or $bridgeType eq "rgb_cct" or $bridgeType eq "cct");
   $hash->{sets} = {};
   $hash->{TYPE} = 'MQTT_DEVICE';
-  MQTT::Client_Define($hash,$name);
-  $hash->{TYPE} = $type;
-  $main::modules{MQTT_MILIGHTDEVICE}{defptr}{$id} = $hash;
+  #MQTT::Client_Define($hash,$name);
+  #$hash->{TYPE} = $type;
+  #$main::modules{MQTT_MILIGHTDEVICE}{defptr}{$id} = $hash;
   CommandAttr(undef,"$hash->{NAME} room MQTT") unless(AttrVal($name,"room",undef));
   unless (AttrVal($name,"webCmd",undef)) {
     CommandAttr(undef,"$hash->{NAME} webCmd level:hue:command") if $bridgeType eq "rgbw" or $bridgeType eq "rgb_cct";
@@ -123,8 +123,8 @@ sub Define() {
   }
   CommandAttr(undef,"$hash->{NAME} useSetExtensions 1") unless (AttrVal($name,"useSetExtensions",undef));
   unless (AttrVal($name,"widgetOverride",undef)) {
-	CommandAttr(undef,"$hash->{NAME} widgetOverride command:uzsuSelectRadio,Weiss,Nacht hue:colorpicker,HUE,0,1,359 level:colorpicker,BRI,0,1,100") if $bridgeType eq "cct" or $bridgeType eq "rgbw";
-	CommandAttr(undef,"$hash->{NAME} widgetOverride command:uzsuSelectRadio,Weiss,Nacht color_temp:colorpicker,CT,153,1,357 level:colorpicker,BRI,0,1,100") if $bridgeType eq "cct_rgb";
+    CommandAttr(undef,"$hash->{NAME} widgetOverride command:uzsuSelectRadio,Weiss,Nacht hue:colorpicker,HUE,0,1,359 level:colorpicker,BRI,0,1,100") if $bridgeType eq "cct" or $bridgeType eq "rgbw";
+    CommandAttr(undef,"$hash->{NAME} widgetOverride command:uzsuSelectRadio,Weiss,Nacht color_temp:colorpicker,CT,153,1,357 level:colorpicker,BRI,0,1,100") if $bridgeType eq "cct_rgb";
   }
   #CommandAttr(undef,"$hash->{NAME} devStateIcon ON:light_light_dim_50@#0ABF01:off OF.*:light_light_dim_00:on") unless (AttrVal($name,"devStateIcon",undef)) ;
   CommandAttr(undef,"$hash->{NAME} devStateIcon {MQTT::MILIGHTDEVICE::dynDevStateIcon(\$name,\"$bridgeType\")}") unless (AttrVal($name,"devStateIcon",undef)) ;
@@ -144,14 +144,14 @@ sub Define() {
   CommandAttr(undef,"$hash->{NAME} publishSet_level milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_level",undef));
   CommandAttr(undef,"$hash->{NAME} publishSet_state ON OFF milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_state",undef));
   if ($bridgeType eq "cct_rgb") {
-	CommandAttr(undef,"$hash->{NAME} publishSet_color_temp milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_color_temp",undef));
+    CommandAttr(undef,"$hash->{NAME} publishSet_color_temp milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_color_temp",undef));
   }
   
 #  CommandAttr(undef,"$hash->{NAME} publishSet_status ON OFF milight/$bridgeID/$bridgeType/$slot") unless (AttrVal($name,"publishSet_status",undef));
   CommandAttr(undef,"$hash->{NAME} stateFormat state") unless (AttrVal($name,"stateFormat",undef));
   CommandAttr(undef,"$hash->{NAME} IODev $myBroker") unless (AttrVal($name,"IODev",undef));
   
-  #return MQTT::Client_Define($hash,$def);
+  return MQTT::Client_Define($hash,$def);
 };
 
 sub Set($$$@) {
@@ -309,7 +309,7 @@ sub onmessage($$$) {
         }
       } else {
         readingsSingleUpdate($hash,$key,$value,1);
-		Log3($hash->{NAME},5,"calling readingsSingleUpdate($hash->{NAME} (loop),$key,$value,1");
+	Log3($hash->{NAME},5,"calling readingsSingleUpdate($hash->{NAME} (loop),$key,$value,1");
       }
     }
   } elsif ($topic =~ $hash->{'.autoSubscribeExpr'}) {
